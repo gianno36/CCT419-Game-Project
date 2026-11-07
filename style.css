@@ -1,35 +1,332 @@
-:root{--bg:#dde2e3;--surface:#f4f6f6;--ink:#1b2327;--mute:#55616a;--line:#b4bec2;--teal:#0f5c5a;--teal-ink:#fff;--rust:#b8420f;--hazard:#f4c20d;--hazard-ink:#1b2327;color-scheme:light;
---head:"Barlow Condensed","Arial Narrow",Arial,sans-serif;--body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
-box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media (prefers-color-scheme:dark){:root{--bg:#171c1f;--surface:#222a2e;--ink:#e8ecee;--mute:#9aa7ad;--line:#38444b;--teal:#4fb3ae;--teal-ink:#10201f;--rust:#ef7a4a;color-scheme:dark}}
-*,*::before,*::after{box-sizing:inherit}
-body{margin:0;background:var(--bg);color:var(--ink);font:400 17px/1.45 var(--body)}
-main{max-width:520px;margin:0 auto;padding:20px 18px 40px}
-h1{font:700 40px/1 var(--head);margin:8px 0 22px;letter-spacing:.01em}
-h2{font:700 26px/1.1 var(--head);margin:26px 0 10px}
-p{margin:0 0 12px}
-.hint{color:var(--mute)}
-.err{color:var(--rust);font-weight:600}
-label{display:block;font-weight:600;margin:14px 0 6px}
-input{width:100%;font:inherit;padding:12px 14px;background:var(--surface);color:var(--ink);border:1px solid var(--ink);border-radius:6px;min-height:46px}
-.btn,.chip{font:600 16px var(--body);min-height:46px;padding:10px 16px;border:1px solid var(--ink);background:var(--surface);color:var(--ink);border-radius:6px;cursor:pointer;margin:10px 8px 0 0}
-.btn.primary{background:var(--teal);border-color:var(--teal);color:var(--teal-ink)}
-.chip[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
-.btn:disabled{opacity:.5;cursor:default}
-button:focus-visible,input:focus-visible{outline:3px solid var(--hazard);outline-offset:2px}
-.sep{margin:26px 0 0;padding-top:4px;border-top:1px solid var(--line);color:var(--mute)}
-.code{font:700 30px var(--head);letter-spacing:.14em;margin-left:8px}
-.turn{background:var(--hazard);color:var(--hazard-ink);padding:14px 16px;border:7px solid transparent;border-image:repeating-linear-gradient(-45deg,var(--hazard) 0 10px,#1b2327 10px 20px) 7;margin:16px 0}
-.turn b{display:block;font:700 40px/1 var(--head)}
-.wait{border:1px solid var(--line);padding:12px 14px;margin:16px 0;color:var(--mute)}
-.wait b{color:var(--ink)}
-ol{list-style:none;margin:0;padding:0}
-.p{display:flex;gap:14px;align-items:flex-start;padding:12px 0 12px 12px;border-bottom:1px solid var(--line);border-left:5px solid transparent}
-.p.cur{border-left-color:var(--hazard)}
-.p.out{opacity:.5}.p.out b{text-decoration:line-through}
-.n{font:700 26px/1 var(--head);min-width:22px;color:var(--mute)}
-.who{flex:1}.who small{display:block;color:var(--mute)}
-.who em{font-style:normal;font-size:14px;color:var(--teal);font-weight:600}
-.bar{display:block;height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:6px}
-.bar i{display:block;height:100%;background:var(--teal)}
-.bar.low i{background:var(--rust)}
+/* =====================================================================
+   Scrapyard Scavengers: styles
+
+   Quick edits
+   - Change colours:      section 1 (variables at the top)
+   - Change fonts:        section 1 (--font-heading and --font-body)
+   - Change spacing:      the "main" rule in section 2
+   - Change the yellow turn banner: section 5
+   ===================================================================== */
+
+
+/* =====================================================================
+   1. Colours and fonts
+   ===================================================================== */
+
+:root {
+  /* Page */
+  --bg: #dde2e3;              /* page background */
+  --surface: #f4f6f6;         /* inputs and buttons */
+  --ink: #1b2327;             /* main text */
+  --mute: #55616a;            /* quieter text */
+  --line: #b4bec2;            /* thin divider lines */
+
+  /* Accents */
+  --teal: #0f5c5a;            /* main buttons, HP bars */
+  --teal-ink: #ffffff;        /* text on teal */
+  --rust: #b8420f;            /* errors and low HP */
+  --hazard: #f4c20d;          /* yellow: current turn, focus outline */
+  --hazard-ink: #1b2327;      /* text on yellow */
+  --stripe: #1b2327;          /* dark stripes on the turn banner border */
+
+  /* Fonts */
+  --font-heading: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  color-scheme: light;
+}
+
+/* Dark mode: used when the phone or computer is set to dark */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #171c1f;
+    --surface: #222a2e;
+    --ink: #e8ecee;
+    --mute: #9aa7ad;
+    --line: #38444b;
+    --teal: #4fb3ae;
+    --teal-ink: #10201f;
+    --rust: #ef7a4a;
+
+    color-scheme: dark;
+  }
+}
+
+
+/* =====================================================================
+   2. Page layout
+   ===================================================================== */
+
+/* Keeps content clear of phone notches and home bars */
+:root {
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: inherit;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+/* The centred column that holds the whole app */
+main {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 20px 18px 40px;
+}
+
+
+/* =====================================================================
+   3. Text
+   ===================================================================== */
+
+h1 {
+  margin: 8px 0 22px;
+  font-family: var(--font-heading);
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+h2 {
+  margin: 26px 0 10px;
+  font-family: var(--font-heading);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+p {
+  margin: 0 0 12px;
+}
+
+/* Quiet helper text */
+.hint {
+  color: var(--mute);
+}
+
+/* Error messages */
+.err {
+  color: var(--rust);
+  font-weight: 600;
+}
+
+/* Thin divider line with space above it */
+.sep {
+  margin: 26px 0 0;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+  color: var(--mute);
+}
+
+/* The 4-letter room code */
+.code {
+  margin-left: 8px;
+  font-family: var(--font-heading);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+
+/* =====================================================================
+   4. Forms and buttons
+   ===================================================================== */
+
+label {
+  display: block;
+  margin: 14px 0 6px;
+  font-weight: 600;
+}
+
+input {
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 14px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--ink);
+  border-radius: 6px;
+}
+
+/* .btn = normal button, .chip = the player buttons you tap to pick a target */
+.btn,
+.chip {
+  min-height: 46px;
+  margin: 10px 8px 0 0;
+  padding: 10px 16px;
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--ink);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* The main action on a screen (Start game, Ready, Apply damage...) */
+.btn.primary {
+  color: var(--teal-ink);
+  background: var(--teal);
+  border-color: var(--teal);
+}
+
+/* A selected target player */
+.chip[aria-pressed="true"] {
+  color: var(--surface);
+  background: var(--ink);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Yellow outline when using the keyboard */
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid var(--hazard);
+  outline-offset: 2px;
+}
+
+
+/* =====================================================================
+   5. Turn banner
+   ===================================================================== */
+
+/* "Your turn": yellow box with a striped border */
+.turn {
+  margin: 16px 0;
+  padding: 14px 16px;
+  color: var(--hazard-ink);
+  background: var(--hazard);
+  border: 7px solid transparent;
+  border-image: repeating-linear-gradient(
+    -45deg,
+    var(--hazard) 0 10px,
+    var(--stripe) 10px 20px
+  ) 7;
+}
+
+.turn b {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* "Someone else's turn": quiet outlined box */
+.wait {
+  margin: 16px 0;
+  padding: 12px 14px;
+  color: var(--mute);
+  border: 1px solid var(--line);
+}
+
+.wait b {
+  color: var(--ink);
+}
+
+
+/* =====================================================================
+   6. Player list
+   ===================================================================== */
+
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One player row */
+.p {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 0 12px 12px;
+  border-bottom: 1px solid var(--line);
+  border-left: 5px solid transparent;
+}
+
+/* Yellow edge on the player whose turn it is */
+.p.cur {
+  border-left-color: var(--hazard);
+}
+
+/* Players who are out of the game */
+.p.out {
+  opacity: 0.5;
+}
+
+.p.out b {
+  text-decoration: line-through;
+}
+
+/* Turn order number */
+.n {
+  min-width: 22px;
+  font-family: var(--font-heading);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--mute);
+}
+
+/* Name and status text */
+.who {
+  flex: 1;
+}
+
+.who small {
+  display: block;
+  color: var(--mute);
+}
+
+/* The small "you" tag */
+.who em {
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 600;
+  color: var(--teal);
+}
+
+
+/* =====================================================================
+   7. HP bar
+   ===================================================================== */
+
+.bar {
+  display: block;
+  height: 8px;
+  margin-top: 6px;
+  overflow: hidden;
+  background: var(--line);
+  border-radius: 4px;
+}
+
+.bar i {
+  display: block;
+  height: 100%;
+  background: var(--teal);
+}
+
+/* Turns red when a player is at 25% HP or less */
+.bar.low i {
+  background: var(--rust);
+}
