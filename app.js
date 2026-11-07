@@ -1,5 +1,5 @@
 // After deploying the backend, paste its URL here (no trailing slash).
-const API = "http://localhost:5000";
+const API = "https://cct419-game-project.onrender.com";
 
 const app = document.getElementById("app");
 const $ = s => document.querySelector(s);
@@ -26,7 +26,7 @@ async function run(fn) {
   if (busy) return;
   busy = true; err = ""; render();
   try { await fn(); }
-  catch (e) { err = e.status ? e.message : "Can’t reach the game server. Try again in a moment."; }
+  catch (e) { err = e.status ? e.message : "Can’t reach the game server at " + API + ". Try again in a moment."; }
   busy = false; render();
 }
 const P = id => (room && room.players[id]) || {};
@@ -45,7 +45,9 @@ const actions = {
     run(async () => { room = await api("/api/rooms/" + c + "/join", { name }); code = c; ls.set("ss.room", c); });
   },
   leave: () => run(async () => {
-    if (room && room.phase === "lobby" && room.host !== pid) await api("/api/rooms/" + code + "/action", { type: "leave" });
+    if (room && (room.phase === "lobby" || room.phase === "over")) {
+      try { await api("/api/rooms/" + code + "/action", { type: "leave" }); } catch (e) {}
+    }
     code = null; room = null; ls.del("ss.room"); sel.clear();
   }),
   start: () => act("start"),
@@ -96,7 +98,7 @@ function game() {
   const me = P(pid);
   if (ph === "lobby") {
     h += `<p class="hint" style="margin-top:14px">Share the room code. Everyone who joins appears above.</p>`;
-    h += host ? `<button class="btn primary" data-act="start"${d}>Start game</button>` : `<p>Waiting for the host to start.</p><button class="btn" data-act="leave"${d}>Leave room</button>`;
+    h += (host ? `<button class="btn primary" data-act="start"${d}>Start game</button>` : `<p>Waiting for the host to start.</p>`) + `<button class="btn" data-act="leave"${d}>Leave room</button>`;
   } else if (ph === "draft") {
     h += `<div class="sep"></div>`;
     h += me.done ? `<p>You’re done building, so the app skips your turns.</p><button class="btn" data-act="undo"${d}>I’m not done yet</button>`
@@ -116,7 +118,7 @@ function game() {
       h += `<label for="adj">Correct my HP</label><input id="adj" type="number" inputmode="numeric" min="0"><button class="btn" data-act="setHp"${d}>Set my HP</button>`;
     }
   } else if (ph === "over") {
-    h += host ? `<button class="btn primary" data-act="lobby"${d}>Play again</button>` : `<p class="hint">The host can start a new game.</p><button class="btn" data-act="leave"${d}>Leave room</button>`;
+    h += (host ? `<button class="btn primary" data-act="lobby"${d}>Play again</button>` : `<p class="hint">The host can start a new game.</p>`) + `<button class="btn" data-act="leave"${d}>Leave room</button>`;
   }
   if (host && ["draft", "hp", "combat"].includes(ph)) h += `<div class="sep"></div><button class="btn" data-act="lobby"${d}>Reset game and return to the lobby</button>`;
   return h;
@@ -138,10 +140,18 @@ function render() {
 // Poll the server so every player sees the same room.
 async function poll() {
   if (!code || busy) return;
-  try { room = await api("/api/rooms/" + code); err = ""; render(); }
+  try {
+    room = await api("/api/rooms/" + code + "?pid=" + pid);
+    if (!room.players[pid]) {
+      const name = ls.get("ss.name");
+      if (room.phase === "lobby" && name) room = await api("/api/rooms/" + code + "/join", { name });
+      else { code = null; room = null; ls.del("ss.room"); err = "You’re no longer in that room."; }
+    } else err = "";
+    render();
+  }
   catch (e) {
     if (e.status === 404) { code = null; room = null; ls.del("ss.room"); err = "That room no longer exists."; }
-    else err = "Can’t reach the game server. Retrying…";
+    else err = "Can’t reach the game server at " + API + ". Retrying…";
     render();
   }
 }

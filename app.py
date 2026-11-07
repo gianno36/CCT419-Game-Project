@@ -39,6 +39,38 @@ def settle(room, advance):
         room["turn"] = next_idx(room, room["turn"], lambda i: i in alive)
 
 
+STALE = 25  # seconds without contact before a lobby player is dropped
+
+
+def remove_player(room, pid):
+    room["players"].pop(pid, None)
+    if pid in room["order"]:
+        room["order"].remove(pid)
+        room["turn"] = 0
+    if room["host"] == pid and room["players"]:
+        room["host"] = min(room["players"], key=lambda i: room["players"][i]["at"])
+
+
+def touch(room, pid):
+    if room and pid in room["players"]:
+        room["players"][pid]["seen"] = time.time()
+
+
+def tidy(code):
+    """Drop lobby players who closed the tab, and delete empty rooms."""
+    room = rooms.get(code)
+    if not room:
+        return None
+    if room["phase"] == "lobby":
+        now = time.time()
+        for i in [i for i, p in room["players"].items() if now - p.get("seen", now) > STALE]:
+            remove_player(room, i)
+    if not room["players"]:
+        del rooms[code]
+        return None
+    return room
+
+
 def apply(room, pid, a):
     """Run one action. Returns an error message, or None on success."""
     p, ph = room["players"], room["phase"]
@@ -99,8 +131,8 @@ def apply(room, pid, a):
         me.update(hp=hp, maxHp=max(me["maxHp"] or 0, hp), out=hp == 0)
         if hp == 0:
             settle(room, False)
-    elif t == "leave" and ph == "lobby" and pid != room["host"]:
-        del p[pid]
+    elif t == "leave" and ph in ("lobby", "over"):
+        remove_player(room, pid)
     else:
         return "That action isn’t available right now."
     return None
@@ -127,6 +159,7 @@ def create():
         rooms[code] = dict(code=code, host=pid, phase="lobby", order=[], turn=0,
                            winner=None, at=time.time(),
                            players={pid: dict(name=name, at=time.time(), **BLANK)})
+        touch(rooms[code], pid)
         return jsonify(rooms[code])
 
 
@@ -135,7 +168,8 @@ def join(code):
     d = request.get_json(silent=True) or {}
     name, pid = str(d.get("name", "")).strip()[:16], str(d.get("pid", ""))
     with lock:
-        room = rooms.get(code.upper())
+        touch(rooms.get(code.upper()), pid)
+        room = tidy(code.upper())
         if not room:
             return fail("No room with that code.", 404)
         if pid not in room["players"]:
@@ -144,13 +178,16 @@ def join(code):
             if not name:
                 return fail("Pick a username first.")
             room["players"][pid] = dict(name=name, at=time.time(), **BLANK)
+        touch(room, pid)
         return jsonify(room)
 
 
 @app.get("/api/rooms/<code>")
 def state(code):
-    room = rooms.get(code.upper())
-    return (jsonify(room) if room else fail("Room not found.", 404))
+    with lock:
+        touch(rooms.get(code.upper()), request.args.get("pid", ""))
+        room = tidy(code.upper())
+        return (jsonify(room) if room else fail("Room not found.", 404))
 
 
 @app.post("/api/rooms/<code>/action")
@@ -158,7 +195,8 @@ def action(code):
     d = request.get_json(silent=True) or {}
     pid = str(d.get("pid", ""))
     with lock:
-        room = rooms.get(code.upper())
+        touch(rooms.get(code.upper()), pid)
+        room = tidy(code.upper())
         if not room or pid not in room["players"]:
             return fail("Room not found.", 404)
         try:
@@ -167,6 +205,8 @@ def action(code):
             msg = "Enter a whole number."
         if msg:
             return fail(msg)
+        if not room["players"]:
+            rooms.pop(code.upper(), None)
         return jsonify(room)
 
 
