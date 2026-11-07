@@ -96,7 +96,7 @@ def apply(room, pid, a):
         room.update(phase="lobby", order=[], turn=0, winner=None)
     elif t == "end" and ph == "draft" and cur == pid:
         room["turn"] = next_idx(room, room["turn"], lambda i: not p[i]["done"])
-    elif t == "done" and ph == "draft":
+    elif t == "done" and ph == "draft" and cur == pid:
         me["done"] = True
         if all(p[i]["done"] for i in room["order"]):
             room.update(phase="hp", turn=0)
@@ -114,23 +114,19 @@ def apply(room, pid, a):
     elif t == "unready" and ph == "hp":
         me["ready"] = False
     elif t == "hit" and ph == "combat" and cur == pid:
+        target = a.get("target")
+        if not target:
+            return "Pick a player to hit."
+        if target not in p or target == pid or p[target]["out"]:
+            return "You can’t hit yourself or a player who is already out."
         dmg = int(a.get("damage", 0))
-        targets = [i for i in a.get("targets", []) if i in p and not p[i]["out"]]
-        if dmg < 1 or not targets:
-            return "Pick at least one player and enter the damage."
-        for i in targets:
-            p[i]["hp"] = max(0, p[i]["hp"] - dmg)
-            p[i]["out"] = p[i]["hp"] == 0
+        if dmg < 1:
+            return "Enter the damage dealt."
+        p[target]["hp"] = max(0, p[target]["hp"] - dmg)
+        p[target]["out"] = p[target]["hp"] == 0
         settle(room, True)
     elif t == "recharge" and ph == "combat" and cur == pid:
         settle(room, True)
-    elif t == "sethp" and ph == "combat" and not me["out"]:
-        hp = int(a.get("hp", -1))
-        if hp < 0:
-            return "Enter an HP of 0 or more."
-        me.update(hp=hp, maxHp=max(me["maxHp"] or 0, hp), out=hp == 0)
-        if hp == 0:
-            settle(room, False)
     elif t == "leave" and ph in ("lobby", "over"):
         remove_player(room, pid)
     else:

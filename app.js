@@ -12,7 +12,7 @@ const ls = {
 
 let pid = ls.get("ss.pid");
 if (!pid) { pid = Math.random().toString(36).slice(2) + Date.now().toString(36); ls.set("ss.pid", pid); }
-let code = ls.get("ss.room"), room = null, sel = new Set(), err = "", busy = false;
+let code = ls.get("ss.room"), room = null, target = null, err = "", busy = false;
 
 async function api(path, body) {
   const res = await fetch(API + path, body
@@ -48,7 +48,7 @@ const actions = {
     if (room && (room.phase === "lobby" || room.phase === "over")) {
       try { await api("/api/rooms/" + code + "/action", { type: "leave" }); } catch (e) {}
     }
-    code = null; room = null; ls.del("ss.room"); sel.clear();
+    code = null; room = null; ls.del("ss.room"); target = null;
   }),
   start: () => act("start"),
   end: () => act("end"),
@@ -58,14 +58,15 @@ const actions = {
   unready: () => act("unready"),
   recharge: () => act("recharge"),
   lobby: () => act("lobby"),
-  hit: () => { const t = [...sel]; act("hit", { damage: $("#dmg").value, targets: t }).then(() => sel.clear()); },
-  setHp: () => act("sethp", { hp: $("#adj").value }),
-  tgt: id => { sel.has(id) ? sel.delete(id) : sel.add(id); render(); },
-  everyone: () => { sel = new Set(order().filter(id => id !== pid && !P(id).out)); render(); }
+  hit: () => {
+    if (!target) { err = "Pick a player to hit."; return render(); }
+    act("hit", { damage: $("#dmg").value, target }).then(() => { target = null; });
+  },
+  tgt: id => { target = target === id ? null : id; render(); }
 };
 app.addEventListener("click", e => {
   const b = e.target.closest("[data-act]");
-  if (!b || b.disabled || (busy && !["tgt", "everyone"].includes(b.dataset.act))) return;
+  if (!b || b.disabled || (busy && b.dataset.act !== "tgt")) return;
   actions[b.dataset.act](b.dataset.id);
 });
 function nm() {
@@ -102,7 +103,7 @@ function game() {
   } else if (ph === "draft") {
     h += `<div class="sep"></div>`;
     h += me.done ? `<p>You’re done building, so the app skips your turns.</p><button class="btn" data-act="undo"${d}>I’m not done yet</button>`
-      : `<p class="hint">${mine ? "" : "Wait for your turn. "}Press the button below once your robot is complete.</p>${mine ? `<button class="btn primary" data-act="end"${d}>End turn</button>` : ""}<button class="btn" data-act="done"${d}>I’m done building</button>`;
+      : `<p class="hint">${mine ? "End your turn, or press “I’m done building” if your robot is finished." : "Wait for your turn. You can press “I’m done building” on your turn."}</p>${mine ? `<button class="btn primary" data-act="end"${d}>End turn</button><button class="btn" data-act="done"${d}>I’m done building</button>` : ""}`;
   } else if (ph === "hp") {
     h += `<div class="sep"></div><p>Add up your robot’s HP and enter it. Combat starts when everyone is ready.</p>`;
     h += me.ready ? `<p><b>You’re ready at ${me.hp} HP.</b></p><button class="btn" data-act="unready"${d}>Change my HP</button>`
@@ -112,10 +113,9 @@ function game() {
     if (me.out) h += `<p>You’re out of the game. Watch the rest of the fight.</p>`;
     else {
       if (mine) {
-        const alive = o.filter(id => !P(id).out);
-        h += `<p class="hint">Pick who takes the hit. If the attack hits everyone, select everyone.</p><div>${alive.map(id => `<button class="chip" aria-pressed="${sel.has(id)}" data-act="tgt" data-id="${esc(id)}">${esc(P(id).name)}${id === pid ? " (you)" : ""}</button>`).join("")}</div><button class="btn" data-act="everyone">Select everyone else</button><label for="dmg">Damage dealt</label><input id="dmg" type="number" inputmode="numeric" min="1"><button class="btn primary" data-act="hit"${d}>Apply damage</button><button class="btn" data-act="recharge"${d}>Recharge instead</button>`;
+        const alive = o.filter(id => !P(id).out && id !== pid);
+        h += `<p class="hint">Pick one player to hit.</p><div>${alive.map(id => `<button class="chip" aria-pressed="${target === id}" data-act="tgt" data-id="${esc(id)}">${esc(P(id).name)}</button>`).join("")}</div><label for="dmg">Damage dealt</label><input id="dmg" type="number" inputmode="numeric" min="1"><button class="btn primary" data-act="hit"${d}>Apply damage</button><button class="btn" data-act="recharge"${d}>Recharge instead</button>`;
       }
-      h += `<label for="adj">Correct my HP</label><input id="adj" type="number" inputmode="numeric" min="0"><button class="btn" data-act="setHp"${d}>Set my HP</button>`;
     }
   } else if (ph === "over") {
     h += (host ? `<button class="btn primary" data-act="lobby"${d}>Play again</button>` : `<p class="hint">The host can start a new game.</p>`) + `<button class="btn" data-act="leave"${d}>Leave room</button>`;
