@@ -1,0 +1,174 @@
+import os
+import random
+import string
+import threading
+import time
+
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app, origins=os.environ.get("ALLOWED_ORIGIN", "*"))
+
+rooms = {}
+lock = threading.Lock()
+BLANK = dict(hp=None, maxHp=None, done=False, ready=False, out=False)
+
+
+def fail(msg, status=400):
+    return jsonify(error=msg), status
+
+
+def next_idx(room, start, ok):
+    order = room["order"]
+    for i in range(1, len(order) + 1):
+        j = (start + i) % len(order)
+        if ok(order[j]):
+            return j
+    return start
+
+
+def settle(room, advance):
+    """Check for a winner, then move to the next living player."""
+    p = room["players"]
+    alive = [i for i in room["order"] if not p[i]["out"]]
+    if len(alive) <= 1:
+        room["phase"] = "over"
+        room["winner"] = alive[0] if alive else None
+    elif advance or room["order"][room["turn"]] not in alive:
+        room["turn"] = next_idx(room, room["turn"], lambda i: i in alive)
+
+
+def apply(room, pid, a):
+    """Run one action. Returns an error message, or None on success."""
+    p, ph = room["players"], room["phase"]
+    me = p[pid]
+    cur = room["order"][room["turn"]] if room["order"] else None
+    t = a.get("type")
+
+    if t == "start":
+        if pid != room["host"]:
+            return "Only the host can start the game."
+        if len(p) < 2:
+            return "You need at least 2 players."
+        ids = list(p)
+        random.shuffle(ids)
+        for i in ids:
+            p[i].update(BLANK)
+        room.update(phase="draft", order=ids, turn=0, winner=None)
+    elif t == "lobby":
+        if pid != room["host"]:
+            return "Only the host can do that."
+        for i in p:
+            p[i].update(BLANK)
+        room.update(phase="lobby", order=[], turn=0, winner=None)
+    elif t == "end" and ph == "draft" and cur == pid:
+        room["turn"] = next_idx(room, room["turn"], lambda i: not p[i]["done"])
+    elif t == "done" and ph == "draft":
+        me["done"] = True
+        if all(p[i]["done"] for i in room["order"]):
+            room.update(phase="hp", turn=0)
+        elif cur == pid:
+            room["turn"] = next_idx(room, room["turn"], lambda i: not p[i]["done"])
+    elif t == "undo" and ph == "draft":
+        me["done"] = False
+    elif t == "ready" and ph == "hp":
+        hp = int(a.get("hp", 0))
+        if hp < 1:
+            return "Enter an HP above 0."
+        me.update(hp=hp, maxHp=hp, ready=True)
+        if all(p[i]["ready"] for i in room["order"]):
+            room.update(phase="combat", turn=0)
+    elif t == "unready" and ph == "hp":
+        me["ready"] = False
+    elif t == "hit" and ph == "combat" and cur == pid:
+        dmg = int(a.get("damage", 0))
+        targets = [i for i in a.get("targets", []) if i in p and not p[i]["out"]]
+        if dmg < 1 or not targets:
+            return "Pick at least one player and enter the damage."
+        for i in targets:
+            p[i]["hp"] = max(0, p[i]["hp"] - dmg)
+            p[i]["out"] = p[i]["hp"] == 0
+        settle(room, True)
+    elif t == "recharge" and ph == "combat" and cur == pid:
+        settle(room, True)
+    elif t == "sethp" and ph == "combat" and not me["out"]:
+        hp = int(a.get("hp", -1))
+        if hp < 0:
+            return "Enter an HP of 0 or more."
+        me.update(hp=hp, maxHp=max(me["maxHp"] or 0, hp), out=hp == 0)
+        if hp == 0:
+            settle(room, False)
+    elif t == "leave" and ph == "lobby" and pid != room["host"]:
+        del p[pid]
+    else:
+        return "That action isn’t available right now."
+    return None
+
+
+@app.get("/")
+def health():
+    return "Scrapyard Scavengers server is running."
+
+
+@app.post("/api/rooms")
+def create():
+    d = request.get_json(silent=True) or {}
+    name, pid = str(d.get("name", "")).strip()[:16], str(d.get("pid", ""))
+    if not name or not pid:
+        return fail("Pick a username first.")
+    with lock:
+        cutoff = time.time() - 12 * 3600
+        for c in [c for c, r in rooms.items() if r["at"] < cutoff]:
+            del rooms[c]
+        code = "".join(random.choices("ABCDEFGHJKLMNPQRSTUVWXYZ", k=4))
+        while code in rooms:
+            code = "".join(random.choices("ABCDEFGHJKLMNPQRSTUVWXYZ", k=4))
+        rooms[code] = dict(code=code, host=pid, phase="lobby", order=[], turn=0,
+                           winner=None, at=time.time(),
+                           players={pid: dict(name=name, at=time.time(), **BLANK)})
+        return jsonify(rooms[code])
+
+
+@app.post("/api/rooms/<code>/join")
+def join(code):
+    d = request.get_json(silent=True) or {}
+    name, pid = str(d.get("name", "")).strip()[:16], str(d.get("pid", ""))
+    with lock:
+        room = rooms.get(code.upper())
+        if not room:
+            return fail("No room with that code.", 404)
+        if pid not in room["players"]:
+            if room["phase"] != "lobby":
+                return fail("That game has already started.")
+            if not name:
+                return fail("Pick a username first.")
+            room["players"][pid] = dict(name=name, at=time.time(), **BLANK)
+        return jsonify(room)
+
+
+@app.get("/api/rooms/<code>")
+def state(code):
+    room = rooms.get(code.upper())
+    return (jsonify(room) if room else fail("Room not found.", 404))
+
+
+@app.post("/api/rooms/<code>/action")
+def action(code):
+    d = request.get_json(silent=True) or {}
+    pid = str(d.get("pid", ""))
+    with lock:
+        room = rooms.get(code.upper())
+        if not room or pid not in room["players"]:
+            return fail("Room not found.", 404)
+        try:
+            msg = apply(room, pid, d)
+        except (ValueError, TypeError):
+            msg = "Enter a whole number."
+        if msg:
+            return fail(msg)
+        return jsonify(room)
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
