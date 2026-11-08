@@ -71,6 +71,12 @@ def tidy(code):
     return room
 
 
+def note(room, text):
+    """Add a line to the combat log (keeps the last 40)."""
+    room.setdefault("log", []).append(text)
+    del room["log"][:-40]
+
+
 def apply(room, pid, a):
     """Run one action. Returns an error message, or None on success."""
     p, ph = room["players"], room["phase"]
@@ -87,13 +93,13 @@ def apply(room, pid, a):
         random.shuffle(ids)
         for i in ids:
             p[i].update(BLANK)
-        room.update(phase="draft", order=ids, turn=0, winner=None)
+        room.update(phase="draft", order=ids, turn=0, winner=None, log=[])
     elif t == "lobby":
         if pid != room["host"]:
             return "Only the host can do that."
         for i in p:
             p[i].update(BLANK)
-        room.update(phase="lobby", order=[], turn=0, winner=None)
+        room.update(phase="lobby", order=[], turn=0, winner=None, log=[])
     elif t == "end" and ph == "draft" and cur == pid:
         room["turn"] = next_idx(room, room["turn"], lambda i: not p[i]["done"])
     elif t == "done" and ph == "draft" and cur == pid:
@@ -117,16 +123,37 @@ def apply(room, pid, a):
         target = a.get("target")
         if not target:
             return "Pick a player to hit."
-        if target not in p or target == pid or p[target]["out"]:
+        alive = [i for i in room["order"] if i != pid and not p[i]["out"]]
+        if target == "all":
+            hit = alive
+        elif target in alive:
+            hit = [target]
+        else:
             return "You can't hit yourself or a player who is already out."
         dmg = int(a.get("damage", 0))
         if dmg < 1:
             return "Enter the damage dealt."
-        p[target]["hp"] = max(0, p[target]["hp"] - dmg)
-        p[target]["out"] = p[target]["hp"] == 0
+        for i in hit:
+            p[i]["hp"] = max(0, p[i]["hp"] - dmg)
+            p[i]["out"] = p[i]["hp"] == 0
+        who = "everyone" if target == "all" else p[target]["name"]
+        text = f'{me["name"]} hit {who} for {dmg}.'
+        for i in hit:
+            if p[i]["out"]:
+                text += f' {p[i]["name"]} is out.'
+        note(room, text)
         settle(room, True)
     elif t == "recharge" and ph == "combat" and cur == pid:
+        note(room, f'{me["name"]} recharged.')
         settle(room, True)
+    elif t == "sethp" and ph == "combat" and cur == pid:
+        hp = int(a.get("hp", -1))
+        if hp < 0:
+            return "Enter an HP of 0 or more."
+        me.update(hp=hp, maxHp=max(me["maxHp"] or 0, hp), out=hp == 0)
+        if hp == 0:
+            note(room, f'{me["name"]} set their HP to 0 and is out.')
+            settle(room, False)
     elif t == "leave" and ph in ("lobby", "over"):
         remove_player(room, pid)
     else:

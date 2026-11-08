@@ -1,11 +1,4 @@
-/* =====================================================================
-   Scrapyard Scavengers: styles (matches the Figma/Illustrator screens)
 
-   Quick edits
-   - Colours:  section 1 (variables at the top)
-   - Font:     --font in section 1 (change it here and in the <link> in index.html)
-   - Width:    the "main" rule in section 2
-   ===================================================================== */
 
 
 /* =====================================================================
@@ -374,4 +367,32 @@ ol {
 /* The winner's bar is lime */
 .bar.win i {
   background: var(--lime);
+}
+
+
+/* =====================================================================
+   8. Combat log
+   ===================================================================== */
+
+/* The "Last turn: ..." line under the turn banner */
+.note.last {
+  margin: 10px 0 12px;
+  color: var(--ink);
+}
+
+/* The list of recent turns (newest first) */
+.log {
+  margin: 0;
+  padding: 0;
+  font-size: 16px;
+  list-style: none;
+}
+
+.log li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--track);
+}
+
+.log li:first-child {
+  font-weight: 700;
 }

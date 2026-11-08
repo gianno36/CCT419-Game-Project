@@ -62,6 +62,7 @@ const actions = {
     if (!target) { err = "Pick a player to hit."; return render(); }
     act("hit", { damage: $("#dmg").value, target }).then(() => { target = null; });
   },
+  setHp: () => act("sethp", { hp: $("#adj").value }),
   tgt: id => { target = target === id ? null : id; render(); }
 };
 app.addEventListener("click", e => {
@@ -94,6 +95,8 @@ function game() {
   if (ph === "draft" || ph === "combat")
     h += mine ? `<div class="turn"><b>Your turn</b>${ph === "draft" ? "Pick up a card, then end your turn." : "Choose who you hit and enter the damage."}</div>`
               : `<div class="wait${ph === "combat" ? " dark" : ""}"><b>${esc(P(cur).name || "Player")}'s turn</b></div>`;
+  const lg = room.log || [];
+  if ((ph === "combat" || ph === "over") && lg.length) h += `<p class="note last"><b>Last turn:</b> ${esc(lg[lg.length - 1])}</p>`;
   if (ph === "over") h += `<p class="note">${room.winner ? esc(P(room.winner).name) + " is the last robot standing." : "Nobody survived."}</p>`;
   h += `<ol>${ids.map((id, i) => row(id, i, ph, cur)).join("")}</ol>`;
   const me = P(pid);
@@ -114,12 +117,13 @@ function game() {
     else {
       if (mine) {
         const alive = o.filter(id => !P(id).out && id !== pid);
-        h += `<p class="hint">Pick one player to hit.</p><div>${alive.map(id => `<button class="chip" aria-pressed="${target === id}" data-act="tgt" data-id="${esc(id)}">${esc(P(id).name)}</button>`).join("")}</div><label for="dmg">Damage dealt</label><input id="dmg" type="number" inputmode="numeric" min="1"><button class="btn primary" data-act="hit"${d}>Apply damage</button><button class="btn" data-act="recharge"${d}>Recharge instead</button>`;
+        h += `<p class="hint">Pick one player to hit, or everyone.</p><div><button class="chip" aria-pressed="${target === "all"}" data-act="tgt" data-id="all">Everyone</button>${alive.map(id => `<button class="chip" aria-pressed="${target === id}" data-act="tgt" data-id="${esc(id)}">${esc(P(id).name)}</button>`).join("")}</div><label for="dmg">Damage dealt</label><input id="dmg" type="number" inputmode="numeric" min="1"><button class="btn primary" data-act="hit"${d}>Apply damage</button><button class="btn" data-act="recharge"${d}>Recharge instead</button><div class="sep"></div><label for="adj">Adjust my HP (this doesn't use your turn)</label><input id="adj" type="number" inputmode="numeric" min="0" placeholder="Now ${me.hp}"><button class="btn" data-act="setHp"${d}>Set my HP</button>`;
       }
     }
   } else if (ph === "over") {
     h += (host ? `<button class="btn primary" data-act="lobby"${d}>Play again</button>` : `<p class="hint">The host can start a new game.</p>`) + `<button class="btn ghost" data-act="leave"${d}>Leave room</button>`;
   }
+  if ((ph === "combat" || ph === "over") && lg.length) h += `<div class="sep">Combat log</div><ul class="log">${lg.slice(-10).reverse().map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
   if (host && ["draft", "hp", "combat"].includes(ph)) h += `<div class="sep"></div><button class="btn" data-act="lobby"${d}>Reset game and return to the lobby</button>`;
   return h;
 }
