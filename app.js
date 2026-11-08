@@ -26,7 +26,7 @@ async function run(fn) {
   if (busy) return;
   busy = true; err = ""; render();
   try { await fn(); }
-  catch (e) { err = e.status ? e.message : "Can’t reach the game server at " + API + ". Try again in a moment."; }
+  catch (e) { err = e.status ? e.message : "Can't reach the game server at " + API + ". Try again in a moment."; }
   busy = false; render();
 }
 const P = id => (room && room.players[id]) || {};
@@ -83,18 +83,18 @@ function row(id, i, ph, cur) {
   else if (ph === "hp") st = p.ready ? "Ready, " + p.hp + " HP" : "Entering HP";
   else st = p.out ? "Out" : (ph === "over" && id === room.winner ? "Winner" : p.hp + " of " + p.maxHp + " HP");
   const bar = (ph === "combat" || ph === "over") && p.maxHp
-    ? `<span class="bar${p.hp / p.maxHp <= .25 ? " low" : ""}"><i style="width:${Math.max(0, Math.min(100, p.hp / p.maxHp * 100))}%"></i></span>` : "";
-  return `<li class="p${c ? " cur" : ""}${p.out ? " out" : ""}">${ph === "lobby" ? "" : `<span class="n">${i + 1}</span>`}<div class="who"><b>${esc(p.name || "Player")}</b>${id === pid ? " <em>you</em>" : ""}<small>${st}</small>${bar}</div></li>`;
+    ? `<span class="bar${ph === "over" && id === room.winner ? " win" : p.hp / p.maxHp <= .25 ? " low" : ""}"><i style="width:${Math.max(0, Math.min(100, p.hp / p.maxHp * 100))}%"></i></span>` : "";
+  return `<li class="p${c ? " cur" : ""}${p.out ? " out" : ""}">${ph === "lobby" ? "" : `<span class="n">${i + 1}</span>`}<div class="who"><b>${esc(p.name || "Player")}</b>${id === pid ? " <em>you</em>" : ""}<small${ph === "lobby" ? ' class="inline"' : ""}>${st}</small>${bar}</div></li>`;
 }
 function game() {
   const ph = room.phase, o = order(), cur = o[room.turn], mine = cur === pid, host = room.host === pid, d = busy ? " disabled" : "";
   const ids = ph === "lobby" ? Object.keys(room.players).sort((a, b) => P(a).at - P(b).at) : o;
   const titles = { lobby: "Waiting for players", draft: "Draft phase", hp: "Enter your HP", combat: "Combat phase", over: "Game over" };
-  let h = `<p>Room<span class="code">${esc(code)}</span></p><h2>${titles[ph]}</h2>`;
+  let h = `<p class="room"><span>Room</span><b class="code">${esc(code)}</b></p><h2>${titles[ph]}</h2>`;
   if (ph === "draft" || ph === "combat")
     h += mine ? `<div class="turn"><b>Your turn</b>${ph === "draft" ? "Pick up a card, then end your turn." : "Choose who you hit and enter the damage."}</div>`
-              : `<div class="wait"><b>${esc(P(cur).name || "Player")}’s turn</b></div>`;
-  if (ph === "over") h += `<p><b>${room.winner ? esc(P(room.winner).name) + " is the last robot standing." : "Nobody survived."}</b></p>`;
+              : `<div class="wait${ph === "combat" ? " dark" : ""}"><b>${esc(P(cur).name || "Player")}'s turn</b></div>`;
+  if (ph === "over") h += `<p class="note">${room.winner ? esc(P(room.winner).name) + " is the last robot standing." : "Nobody survived."}</p>`;
   h += `<ol>${ids.map((id, i) => row(id, i, ph, cur)).join("")}</ol>`;
   const me = P(pid);
   if (ph === "lobby") {
@@ -102,15 +102,15 @@ function game() {
     h += (host ? `<button class="btn primary" data-act="start"${d}>Start game</button>` : `<p>Waiting for the host to start.</p>`) + `<button class="btn" data-act="leave"${d}>Leave room</button>`;
   } else if (ph === "draft") {
     h += `<div class="sep"></div>`;
-    h += me.done ? `<p>You’re done building, so the app skips your turns.</p><button class="btn" data-act="undo"${d}>I’m not done yet</button>`
-      : `<p class="hint">${mine ? "End your turn, or press “I’m done building” if your robot is finished." : "Wait for your turn. You can press “I’m done building” on your turn."}</p>${mine ? `<button class="btn primary" data-act="end"${d}>End turn</button><button class="btn" data-act="done"${d}>I’m done building</button>` : ""}`;
+    h += me.done ? `<p>You're done building, so the app skips your turns.</p><button class="btn" data-act="undo"${d}>I'm not done yet</button>`
+      : `<p class="hint">${mine ? "End your turn, or press “I'm done building” if your robot is finished." : "Wait for your turn. You can press “I'm done building” on your turn."}</p>${mine ? `<button class="btn primary" data-act="end"${d}>End turn</button><button class="btn" data-act="done"${d}>I'm done building</button>` : ""}`;
   } else if (ph === "hp") {
-    h += `<div class="sep"></div><p>Add up your robot’s HP and enter it. Combat starts when everyone is ready.</p>`;
-    h += me.ready ? `<p><b>You’re ready at ${me.hp} HP.</b></p><button class="btn" data-act="unready"${d}>Change my HP</button>`
+    h += `<div class="sep"></div><p>Add up your robot's HP and enter it. Combat starts when everyone is ready.</p>`;
+    h += me.ready ? `<p><b>You're ready at ${me.hp} HP.</b></p><button class="btn" data-act="unready"${d}>Change my HP</button>`
       : `<label for="hp">Your total HP</label><input id="hp" type="number" inputmode="numeric" min="1"><button class="btn primary" data-act="ready"${d}>Ready</button>`;
   } else if (ph === "combat") {
     h += `<div class="sep"></div>`;
-    if (me.out) h += `<p>You’re out of the game. Watch the rest of the fight.</p>`;
+    if (me.out) h += `<p>You're out of the game. Watch the rest of the fight.</p>`;
     else {
       if (mine) {
         const alive = o.filter(id => !P(id).out && id !== pid);
@@ -118,14 +118,14 @@ function game() {
       }
     }
   } else if (ph === "over") {
-    h += (host ? `<button class="btn primary" data-act="lobby"${d}>Play again</button>` : `<p class="hint">The host can start a new game.</p>`) + `<button class="btn" data-act="leave"${d}>Leave room</button>`;
+    h += (host ? `<button class="btn primary" data-act="lobby"${d}>Play again</button>` : `<p class="hint">The host can start a new game.</p>`) + `<button class="btn ghost" data-act="leave"${d}>Leave room</button>`;
   }
   if (host && ["draft", "hp", "combat"].includes(ph)) h += `<div class="sep"></div><button class="btn" data-act="lobby"${d}>Reset game and return to the lobby</button>`;
   return h;
 }
 function view() {
   const e = err ? `<p class="err" role="alert">${esc(err)}</p>` : "";
-  if (!code) return `${e}<label for="name">Username</label><input id="name" maxlength="16" autocomplete="off" value="${esc(ls.get("ss.name") || "")}"><button class="btn primary" data-act="create"${busy ? " disabled" : ""}>Create a room</button><div class="sep">Joining a friend’s room?</div><label for="code">Room code</label><input id="code" maxlength="4" autocomplete="off" autocapitalize="characters"><button class="btn" data-act="join"${busy ? " disabled" : ""}>Join room</button>`;
+  if (!code) return `${e}<label for="name">Username</label><input id="name" maxlength="16" autocomplete="off" value="${esc(ls.get("ss.name") || "")}"><button class="btn primary" data-act="create"${busy ? " disabled" : ""}>Create a room</button><div class="sep">Joining a friend's room?</div><label for="code">Room code</label><input id="code" maxlength="4" autocomplete="off" autocapitalize="characters"><button class="btn primary" data-act="join"${busy ? " disabled" : ""}>Join room</button>`;
   if (!room) return `${e}<p class="hint">Loading room…</p><button class="btn" data-act="leave">Leave room</button>`;
   return e + game();
 }
@@ -145,13 +145,13 @@ async function poll() {
     if (!room.players[pid]) {
       const name = ls.get("ss.name");
       if (room.phase === "lobby" && name) room = await api("/api/rooms/" + code + "/join", { name });
-      else { code = null; room = null; ls.del("ss.room"); err = "You’re no longer in that room."; }
+      else { code = null; room = null; ls.del("ss.room"); err = "You're no longer in that room."; }
     } else err = "";
     render();
   }
   catch (e) {
     if (e.status === 404) { code = null; room = null; ls.del("ss.room"); err = "That room no longer exists."; }
-    else err = "Can’t reach the game server at " + API + ". Retrying…";
+    else err = "Can't reach the game server at " + API + ". Retrying…";
     render();
   }
 }

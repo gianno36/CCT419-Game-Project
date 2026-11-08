@@ -118,7 +118,7 @@ def apply(room, pid, a):
         if not target:
             return "Pick a player to hit."
         if target not in p or target == pid or p[target]["out"]:
-            return "You can’t hit yourself or a player who is already out."
+            return "You can't hit yourself or a player who is already out."
         dmg = int(a.get("damage", 0))
         if dmg < 1:
             return "Enter the damage dealt."
@@ -130,7 +130,7 @@ def apply(room, pid, a):
     elif t == "leave" and ph in ("lobby", "over"):
         remove_player(room, pid)
     else:
-        return "That action isn’t available right now."
+        return "That action isn't available right now."
     return None
 
 
