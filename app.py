@@ -12,7 +12,7 @@ CORS(app, origins=os.environ.get("ALLOWED_ORIGIN", "*"))
 
 rooms = {}
 lock = threading.Lock()
-BLANK = dict(hp=None, maxHp=None, done=False, ready=False, out=False)
+BLANK = dict(hp=None, maxHp=None, done=False, ready=False, out=False, noattack=False)
 
 
 def fail(msg, status=400):
@@ -71,9 +71,9 @@ def tidy(code):
     return room
 
 
-def note(room, text):
-    """Add a line to the combat log (keeps the last 40)."""
-    room.setdefault("log", []).append(text)
+def note(room, text, kind="turn"):
+    """Add a line to the combat log (keeps the last 40). kind is "turn" or "hp"."""
+    room.setdefault("log", []).append(dict(k=kind, text=text))
     del room["log"][:-40]
 
 
@@ -120,9 +120,11 @@ def apply(room, pid, a):
     elif t == "unready" and ph == "hp":
         me["ready"] = False
     elif t == "hit" and ph == "combat" and cur == pid:
+        if me.get("noattack"):
+            return "You can't attack this turn. Recharge instead."
         target = a.get("target")
         if not target:
-            return "Pick a player to hit."
+            return "Pick a player to attack."
         alive = [i for i in room["order"] if i != pid and not p[i]["out"]]
         if target == "all":
             hit = alive
@@ -130,29 +132,46 @@ def apply(room, pid, a):
             hit = [target]
         else:
             return "You can't hit yourself or a player who is already out."
-        dmg = int(a.get("damage", 0))
-        if dmg < 1:
-            return "Enter the damage dealt."
+        dmg = int(a.get("damage", ""))
+        if dmg < 0:
+            return "Damage can't be negative."
         for i in hit:
             p[i]["hp"] = max(0, p[i]["hp"] - dmg)
             p[i]["out"] = p[i]["hp"] == 0
         who = "everyone" if target == "all" else p[target]["name"]
-        text = f'{me["name"]} hit {who} for {dmg}.'
+        text = f'{me["name"]} {"hit" if dmg else "attacked"} {who} for {dmg}.'
+        extra = str(a.get("note", "")).strip()[:80]
+        if extra:
+            text += f" ({extra})"
         for i in hit:
             if p[i]["out"]:
                 text += f' {p[i]["name"]} is out.'
+        if a.get("lockTarget"):
+            names = ", ".join(p[i]["name"] for i in hit if not p[i]["out"])
+            for i in hit:
+                p[i]["noattack"] = True
+            if names:
+                text += f" {names} can't attack next turn."
+        me["noattack"] = bool(a.get("lockSelf"))
+        if me["noattack"]:
+            text += f" {me['name']} can't attack next turn."
         note(room, text)
         settle(room, True)
     elif t == "recharge" and ph == "combat" and cur == pid:
+        me["noattack"] = False
         note(room, f'{me["name"]} recharged.')
         settle(room, True)
-    elif t == "sethp" and ph == "combat" and cur == pid:
-        hp = int(a.get("hp", -1))
+    elif t == "sethp" and ph == "combat" and not me["out"]:
+        hp = int(a.get("hp", ""))
         if hp < 0:
             return "Enter an HP of 0 or more."
+        old = me["hp"]
         me.update(hp=hp, maxHp=max(me["maxHp"] or 0, hp), out=hp == 0)
+        text = f'{me["name"]} changed their HP from {old} to {hp}.'
         if hp == 0:
-            note(room, f'{me["name"]} set their HP to 0 and is out.')
+            text += " They are out."
+        note(room, text, "hp")
+        if hp == 0:
             settle(room, False)
     elif t == "leave" and ph in ("lobby", "over"):
         remove_player(room, pid)

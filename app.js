@@ -12,7 +12,7 @@ const ls = {
 
 let pid = ls.get("ss.pid");
 if (!pid) { pid = Math.random().toString(36).slice(2) + Date.now().toString(36); ls.set("ss.pid", pid); }
-let code = ls.get("ss.room"), room = null, target = null, err = "", busy = false;
+let code = ls.get("ss.room"), room = null, target = null, lockT = false, lockS = false, err = "", busy = false;
 
 async function api(path, body) {
   const res = await fetch(API + path, body
@@ -25,9 +25,11 @@ async function api(path, body) {
 async function run(fn) {
   if (busy) return;
   busy = true; err = ""; render();
-  try { await fn(); }
+  let ok = false;
+  try { await fn(); ok = true; }
   catch (e) { err = e.status ? e.message : "Can't reach the game server at " + API + ". Try again in a moment."; }
   busy = false; render();
+  return ok;
 }
 const P = id => (room && room.players[id]) || {};
 const order = () => (room && room.order) || [];
@@ -59,9 +61,12 @@ const actions = {
   recharge: () => act("recharge"),
   lobby: () => act("lobby"),
   hit: () => {
-    if (!target) { err = "Pick a player to hit."; return render(); }
-    act("hit", { damage: $("#dmg").value, target }).then(() => { target = null; });
+    if (!target) { err = "Pick a player to attack."; return render(); }
+    act("hit", { damage: $("#dmg").value, target, note: $("#note").value, lockTarget: lockT, lockSelf: lockS })
+      .then(ok => { if (ok) { target = null; lockT = false; lockS = false; } });
   },
+  lockT: () => { lockT = !lockT; render(); },
+  lockS: () => { lockS = !lockS; render(); },
   setHp: () => act("sethp", { hp: $("#adj").value }),
   tgt: id => { target = target === id ? null : id; render(); }
 };
@@ -82,7 +87,7 @@ function row(id, i, ph, cur) {
   if (ph === "lobby") st = id === room.host ? "Host" : "Joined";
   else if (ph === "draft") st = p.done ? "Done building" : "Drafting";
   else if (ph === "hp") st = p.ready ? "Ready, " + p.hp + " HP" : "Entering HP";
-  else st = p.out ? "Out" : (ph === "over" && id === room.winner ? "Winner" : p.hp + " of " + p.maxHp + " HP");
+  else st = p.out ? "Out" : (ph === "over" && id === room.winner ? "Winner" : p.hp + " of " + p.maxHp + " HP" + (p.noattack ? ", can't attack next turn" : ""));
   const bar = (ph === "combat" || ph === "over") && p.maxHp
     ? `<span class="bar${ph === "over" && id === room.winner ? " win" : p.hp / p.maxHp <= .25 ? " low" : ""}"><i style="width:${Math.max(0, Math.min(100, p.hp / p.maxHp * 100))}%"></i></span>` : "";
   return `<li class="p${c ? " cur" : ""}${p.out ? " out" : ""}">${ph === "lobby" ? "" : `<span class="n">${i + 1}</span>`}<div class="who"><b>${esc(p.name || "Player")}</b>${id === pid ? " <em>you</em>" : ""}<small${ph === "lobby" ? ' class="inline"' : ""}>${st}</small>${bar}</div></li>`;
@@ -95,8 +100,8 @@ function game() {
   if (ph === "draft" || ph === "combat")
     h += mine ? `<div class="turn"><b>Your turn</b>${ph === "draft" ? "Pick up a card, then end your turn." : "Choose who you hit and enter the damage."}</div>`
               : `<div class="wait${ph === "combat" ? " dark" : ""}"><b>${esc(P(cur).name || "Player")}'s turn</b></div>`;
-  const lg = room.log || [];
-  if ((ph === "combat" || ph === "over") && lg.length) h += `<p class="note last"><b>Last turn:</b> ${esc(lg[lg.length - 1])}</p>`;
+  const lg = room.log || [], lt = [...lg].reverse().find(x => x.k === "turn");
+  if ((ph === "combat" || ph === "over") && lt) h += `<p class="note last"><b>Last turn:</b> ${esc(lt.text)}</p>`;
   if (ph === "over") h += `<p class="note">${room.winner ? esc(P(room.winner).name) + " is the last robot standing." : "Nobody survived."}</p>`;
   h += `<ol>${ids.map((id, i) => row(id, i, ph, cur)).join("")}</ol>`;
   const me = P(pid);
@@ -115,15 +120,18 @@ function game() {
     h += `<div class="sep"></div>`;
     if (me.out) h += `<p>You're out of the game. Watch the rest of the fight.</p>`;
     else {
-      if (mine) {
+      if (mine && me.noattack) {
+        h += `<p><b>You can't attack this turn.</b> Recharge your limbs instead.</p><button class="btn primary" data-act="recharge"${d}>Recharge</button>`;
+      } else if (mine) {
         const alive = o.filter(id => !P(id).out && id !== pid);
-        h += `<p class="hint">Pick one player to hit, or everyone.</p><div><button class="chip" aria-pressed="${target === "all"}" data-act="tgt" data-id="all">Everyone</button>${alive.map(id => `<button class="chip" aria-pressed="${target === id}" data-act="tgt" data-id="${esc(id)}">${esc(P(id).name)}</button>`).join("")}</div><label for="dmg">Damage dealt</label><input id="dmg" type="number" inputmode="numeric" min="1"><button class="btn primary" data-act="hit"${d}>Apply damage</button><button class="btn" data-act="recharge"${d}>Recharge instead</button><div class="sep"></div><label for="adj">Adjust my HP (this doesn't use your turn)</label><input id="adj" type="number" inputmode="numeric" min="0" placeholder="Now ${me.hp}"><button class="btn" data-act="setHp"${d}>Set my HP</button>`;
+        h += `<p class="hint">Pick one player to attack, or everyone.</p><div><button class="chip" aria-pressed="${target === "all"}" data-act="tgt" data-id="all">Everyone</button>${alive.map(id => `<button class="chip" aria-pressed="${target === id}" data-act="tgt" data-id="${esc(id)}">${esc(P(id).name)}</button>`).join("")}</div><label for="dmg">Damage dealt (0 if none)</label><input id="dmg" type="number" inputmode="numeric" min="0"><label for="note">Effect note (optional)</label><input id="note" maxlength="80" autocomplete="off" placeholder="e.g. deactivated a Plant limb"><div><button class="chip" aria-pressed="${lockT}" data-act="lockT">Target can't attack next turn</button><button class="chip" aria-pressed="${lockS}" data-act="lockS">I can't attack next turn</button></div><button class="btn primary" data-act="hit"${d}>Attack</button><button class="btn" data-act="recharge"${d}>Recharge instead</button>`;
       }
+      h += `<div class="sep"></div><label for="adj">Adjust my HP (any time, doesn't use your turn)</label><input id="adj" type="number" inputmode="numeric" min="0" placeholder="Now ${me.hp}"><button class="btn" data-act="setHp"${d}>Set my HP</button>`;
     }
   } else if (ph === "over") {
     h += (host ? `<button class="btn primary" data-act="lobby"${d}>Play again</button>` : `<p class="hint">The host can start a new game.</p>`) + `<button class="btn ghost" data-act="leave"${d}>Leave room</button>`;
   }
-  if ((ph === "combat" || ph === "over") && lg.length) h += `<div class="sep">Combat log</div><ul class="log">${lg.slice(-10).reverse().map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
+  if ((ph === "combat" || ph === "over") && lg.length) h += `<div class="sep">Combat log</div><ul class="log">${lg.slice(-10).reverse().map(x => `<li class="${x.k}">${esc(x.text)}</li>`).join("")}</ul>`;
   if (host && ["draft", "hp", "combat"].includes(ph)) h += `<div class="sep"></div><button class="btn" data-act="lobby"${d}>Reset game and return to the lobby</button>`;
   return h;
 }

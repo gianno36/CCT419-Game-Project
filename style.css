@@ -1,6 +1,4 @@
 
-
-
 /* =====================================================================
    1. Colours and font
    ===================================================================== */
@@ -27,7 +25,6 @@
    2. Page layout
    ===================================================================== */
 
-/* Keeps content clear of phone notches and home bars */
 :root {
   box-sizing: border-box;
   padding-top: env(safe-area-inset-top, 0px);
@@ -49,7 +46,6 @@ body {
   line-height: 1.35;
 }
 
-/* The centred column that holds the whole app */
 main {
   max-width: 640px;
   margin: 0 auto;
@@ -69,7 +65,6 @@ h1 {
   text-align: center;
 }
 
-/* Thin line under the title with a lime piece at the left */
 .rule {
   position: relative;
   height: 1px;
@@ -98,7 +93,6 @@ p {
   margin: 0 0 10px;
 }
 
-/* "Room" and the 4-letter code */
 .room {
   margin: 0;
 }
@@ -115,20 +109,17 @@ p {
   letter-spacing: 0.25em;
 }
 
-/* Small grey helper text */
 .hint,
 .note {
   font-size: 15px;
   color: var(--mute);
 }
 
-/* Error messages */
 .err {
   font-size: 16px;
   color: var(--rust);
 }
 
-/* Thin divider line with small text under it */
 .sep {
   margin: 22px 0 0;
   padding-top: 6px;
@@ -160,7 +151,6 @@ input {
   border-radius: 6px;
 }
 
-/* .btn = dark button, .chip = the tap-to-pick player button */
 .btn,
 .chip {
   min-height: 40px;
@@ -176,21 +166,18 @@ input {
   cursor: pointer;
 }
 
-/* The main action on a screen (Start game, Ready, Apply damage...) */
 .btn.primary {
   color: var(--ink);
   background: var(--lime);
   border-color: var(--ink);
 }
 
-/* Light outlined button (Leave room on the game over screen) */
 .btn.ghost {
   color: var(--ink);
   background: var(--bg);
   border-color: var(--border);
 }
 
-/* Player buttons: lime, and dark once selected */
 .chip {
   color: var(--ink);
   background: var(--lime);
@@ -219,7 +206,6 @@ input:focus-visible {
    5. Turn banner
    ===================================================================== */
 
-/* "Your turn": lime box */
 .turn {
   margin: 14px 0;
   padding: 10px 14px;
@@ -237,7 +223,6 @@ input:focus-visible {
   font-weight: 400;
 }
 
-/* "Someone else's turn": white box in the draft... */
 .wait {
   margin: 14px 0;
   padding: 10px 14px;
@@ -250,7 +235,6 @@ input:focus-visible {
   font-weight: 400;
 }
 
-/* ...and dark green in combat */
 .wait.dark {
   color: var(--dark-ink);
   background: var(--dark);
@@ -266,7 +250,6 @@ input:focus-visible {
    6. Player list
    ===================================================================== */
 
-/* The white box that holds every player row */
 ol {
   margin: 0 0 4px;
   padding: 0;
@@ -277,7 +260,6 @@ ol {
   border-radius: 6px;
 }
 
-/* One player row */
 .p {
   display: flex;
   align-items: flex-start;
@@ -289,12 +271,10 @@ ol {
   border-top: 1px solid var(--border);
 }
 
-/* Lime edge on the player whose turn it is */
 .p.cur {
   box-shadow: inset 4px 0 0 var(--lime);
 }
 
-/* Players who are out of the game */
 .p.out {
   opacity: 0.55;
 }
@@ -303,7 +283,6 @@ ol {
   text-decoration: line-through;
 }
 
-/* Turn order number */
 .n {
   min-width: 14px;
   padding-top: 2px;
@@ -311,7 +290,6 @@ ol {
   color: var(--mute);
 }
 
-/* Name and status text */
 .who {
   flex: 1;
 }
@@ -322,13 +300,11 @@ ol {
   color: var(--mute);
 }
 
-/* In the lobby the status sits on the same line as the name */
 .who small.inline {
   display: inline;
   margin-left: 8px;
 }
 
-/* The small lime "you" tag */
 .who em {
   margin-left: 6px;
   padding: 1px 8px;
@@ -359,12 +335,10 @@ ol {
   background: var(--dark);
 }
 
-/* Turns red at 25% HP or less */
 .bar.low i {
   background: var(--rust);
 }
 
-/* The winner's bar is lime */
 .bar.win i {
   background: var(--lime);
 }
@@ -374,13 +348,11 @@ ol {
    8. Combat log
    ===================================================================== */
 
-/* The "Last turn: ..." line under the turn banner */
 .note.last {
   margin: 10px 0 12px;
   color: var(--ink);
 }
 
-/* The list of recent turns (newest first) */
 .log {
   margin: 0;
   padding: 0;
@@ -393,6 +365,6 @@ ol {
   border-bottom: 1px solid var(--track);
 }
 
-.log li:first-child {
-  font-weight: 700;
+.log li.hp {
+  color: var(--mute);
 }
